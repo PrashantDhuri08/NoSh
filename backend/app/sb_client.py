@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-url = os.getenv("SUPABASE_URL")
-key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+key = os.getenv("SUPABASE_KEY")
+url = os.getenv("SUPABASE_PURL")
 
 supabase = create_client(url, key)
 
