@@ -167,3 +167,63 @@ def create_room(request: Request, name: str = Form(...)):
         return {"status": "success", "room": room_response.data[0]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Room creation failed: {str(e)}")
+
+
+@router.get("/your-api/rooms/list")
+async def list_rooms(request: Request):
+    # Step 1: Get access token from cookie
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+
+    # Step 2: Validate token and get user email
+    try:
+        user = supabase.auth.get_user(access_token).user
+        email = user.email
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    # Step 3: Get internal user ID
+    try:
+        profile_response = supabase.from_("users").select("id").eq("email", email).single().execute()
+        user_id = profile_response.data["id"]
+    except Exception:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Step 4: Fetch rooms created by user
+    try:
+        rooms_response = supabase.from_("rooms").select("*").eq("created_by", user_id).execute()
+        rooms = rooms_response.data or []
+        return {"status": "success", "rooms": rooms}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
+
+
+@router.get("/by-room/{room_id}")
+async def get_notes_by_room(room_id: int):
+    response = supabase.from_("notes").select("*").eq("room_id", room_id).execute()
+    if not response.data:
+        raise HTTPException(status_code=404, detail="No notes found")
+    return {"notes": response.data}
+
+
+@router.get("/notes/file-url")
+async def get_file_url( request: Request):
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+
+    try:
+        user = supabase.auth.get_user(access_token).user
+        user_id = user.id
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Construct file path
+    file_path = f"5/1754227037.pdf"
+
+    try:
+        signed_url_response = supabase.storage.from_("note-files").create_signed_url(file_path, 3600, {"download": True})
+        return {"url": signed_url_response["signedURL"]}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to generate URL: {str(e)}")
