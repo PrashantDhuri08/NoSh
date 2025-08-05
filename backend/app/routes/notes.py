@@ -227,3 +227,27 @@ async def get_file_url( request: Request):
         return {"url": signed_url_response["signedURL"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate URL: {str(e)}")
+    
+
+
+@router.put("/notes/{note_id}")
+async def update_note_content(note_id: int, payload: dict):
+    content = payload.get("content")
+    if not content:
+        raise HTTPException(400, "Missing content")
+    
+    result = supabase.from_("notes").update({"content": content}).eq("id", note_id).execute()
+    
+    if result.data is None:
+        raise HTTPException(status_code=500, detail="Failed to update note")
+    
+    return { "status": "success", "note": result.data }
+
+
+@router.get("/notes/{note_id}")
+async def get_note(note_id: int):
+    response = supabase.from_("notes").select("content").eq("id", note_id).single().execute()
+    if response.data is None:
+        raise HTTPException(status_code=404, detail="Note not found")
+    
+    return { "content": response.data["content"] }
