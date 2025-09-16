@@ -9,3 +9,7 @@ pydantic[email]
 
 passlib[bcrypt]
 python-jose[cryptography]
+
+supabase
+gotrue
+dotenv

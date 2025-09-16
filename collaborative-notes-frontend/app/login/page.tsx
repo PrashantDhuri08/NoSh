@@ -1,55 +1,73 @@
-'use client'
+"use client";
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import axios from 'axios'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { FileText, Mail, Lock } from 'lucide-react'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import axios from "axios";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FileText, Mail, Lock } from "lucide-react";
+import { FcGoogle } from "react-icons/fc";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+const handleGoogleLogin = () => {
+  window.location.href = `${API_BASE_URL}/auth/login/go`; // redirect to backend
+};
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 export default function Login() {
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  })
-  const [error, setError] = useState('')
-  const [loading, setLoading] = useState(false)
-  const router = useRouter()
+    email: "",
+    password: "",
+  });
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
       ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
+      [e.target.name]: e.target.value,
+    });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError('')
+    e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/auth/signin`, {
-        email: formData.email,
-        password: formData.password
-      }, {
-        withCredentials: true // Important for cookie-based auth
-      })
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/signin`,
+        {
+          email: formData.email,
+          password: formData.password,
+        },
+        {
+          withCredentials: true, // Important for cookie-based auth
+        }
+      );
 
       if (response.status === 200) {
-        router.push('/dashboard')
+        router.push("/dashboard");
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Login failed. Please check your credentials.')
+      setError(
+        err.response?.data?.detail ||
+          "Login failed. Please check your credentials."
+      );
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4 sm:px-6 lg:px-8">
@@ -70,9 +88,12 @@ export default function Login() {
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
-            
+
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium flex items-center">
+              <label
+                htmlFor="email"
+                className="text-sm font-medium flex items-center"
+              >
                 <Mail className="h-4 w-4 mr-2" />
                 Email
               </label>
@@ -89,7 +110,10 @@ export default function Login() {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium flex items-center">
+              <label
+                htmlFor="password"
+                className="text-sm font-medium flex items-center"
+              >
                 <Lock className="h-4 w-4 mr-2" />
                 Password
               </label>
@@ -105,23 +129,31 @@ export default function Login() {
               />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? 'Signing in...' : 'Sign in'}
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? "Signing in..." : "Sign in"}
             </Button>
 
             <div className="text-center text-sm">
               {"Don't have an account? "}
-              <Link href="/signup" className="text-blue-600 hover:underline font-medium">
+              <Link
+                href="/signup"
+                className="text-blue-600 hover:underline font-medium"
+              >
                 Sign up
               </Link>
+              <Button
+                type="button"
+                onClick={handleGoogleLogin}
+                variant="outline"
+                className="w-full flex items-center justify-center space-x-2"
+              >
+                <FcGoogle className="h-5 w-5" />
+                <span>Continue with Google</span>
+              </Button>
             </div>
           </form>
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }

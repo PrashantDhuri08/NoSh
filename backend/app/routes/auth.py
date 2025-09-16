@@ -16,10 +16,10 @@ router = APIRouter()
 supabase = get_supabase_client()
 
 SUPABASE_URL = os.getenv("SUPABASE_PURL")
-GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/callback"
+GOOGLE_REDIRECT_URL = "http://localhost:3000/auth/callback"
 ### CONFIGS
 # GOOGLE_REDIRECT_URL = "http://localhost:8000/auth/callback"
-FRONTEND_REDIRECT = "http://localhost:5173/dashboard"
+FRONTEND_REDIRECT = "http://localhost:3000/dashboard"
 
 # --- Models ---
 class SignUpRequest(BaseModel):
@@ -107,56 +107,24 @@ def login_with_google():
 
 @router.get("/login/go")
 def logingo():
-    redirect_url = "http://localhost:5173/callback" 
+    redirect_url = "http://localhost:3000/auth/callback"
     auth_url = (
         "https://ztpkrolkyvgclbrijlzu.supabase.co/auth/v1/authorize"
         f"?provider=google&redirect_to={redirect_url}"
     )   
     return RedirectResponse(auth_url)
 
-# --- Callback from Google ---
-import httpx
 
+# Step 2: Store tokens from frontend callback
 @router.post("/store-token")
 async def store_token(data: dict):
     access_token = data.get("access_token")
     refresh_token = data.get("refresh_token")
 
+    if not access_token:
+        return JSONResponse({"error": "No access_token provided"}, status_code=400)
+
     response = JSONResponse({"message": "Token stored"})
-    response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="Lax")
-    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="Lax")
-    return response
-
-
-@router.get("/calback")
-async def auth_calback(request: Request):
-    code = request.query_params.get("code")
-    if not code:
-        return {"error": "No authorization code provided"}
-
-    async with httpx.AsyncClient() as client:
-        token_res = await client.post(
-            "https://ztpkrolkyvgclbrijlzu.supabase.co/auth/v1/token",
-            data={
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": "http://localhost:8000/calback"
-            },
-            headers={
-                "Content-Type": "application/x-www-form-urlencoded",
-                "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0cGtyb2xreXZnY2xicmlqbHp1Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1MjU5MDY3MiwiZXhwIjoyMDY4MTY2NjcyfQ.jj9hY5MV4-LODKRCQGu8brBdwG32owg29ZGa97kWTW4"  # 🔑 required
-            }
-        )
-
-    if token_res.status_code != 200:
-        return {"error": "Token exchange failed", "details": token_res.text}
-
-    tokens = token_res.json()
-    access_token = tokens.get("access_token")
-
-    # Redirect to frontend with cookie
-    frontend_url = "http://localhost:5173/dashboard"
-    response = RedirectResponse(frontend_url)
     response.set_cookie(
         key="access_token",
         value=access_token,
@@ -164,98 +132,72 @@ async def auth_calback(request: Request):
         secure=False,   # change to True in production
         samesite="Lax"
     )
+    if refresh_token:
+        response.set_cookie(
+            key="refresh_token",
+            value=refresh_token,
+            httponly=True,
+            secure=False,
+            samesite="Lax"
+        )
     return response
 
 
-@router.get("/auth/callback")
-async def google_callback(request: Request):
+
+import httpx
+
+@router.get("/callback")
+async def auth_callback(request: Request):
     code = request.query_params.get("code")
     if not code:
         raise HTTPException(status_code=400, detail="No authorization code provided")
 
-    # 1. Exchange code for tokens
+    # Exchange code for tokens
     async with httpx.AsyncClient() as client:
         token_res = await client.post(
             f"{SUPABASE_URL}/auth/v1/token",
             data={
                 "grant_type": "authorization_code",
                 "code": code,
-                "redirect_uri": GOOGLE_REDIRECT_URL
+                "redirect_uri": GOOGLE_REDIRECT_URL,
             },
             headers={
                 "Content-Type": "application/x-www-form-urlencoded",
-                "apikey": os.getenv("SUPABASE_KEY")  # safer than hardcoding
-            }
+                "apikey": os.getenv("SUPABASE_KEY"),
+            },
         )
 
     if token_res.status_code != 200:
-        raise HTTPException(status_code=400, detail="Token exchange failed")
+        raise HTTPException(status_code=400, detail=token_res.text)
 
     tokens = token_res.json()
     access_token = tokens.get("access_token")
     refresh_token = tokens.get("refresh_token")
 
-    # 2. Get user info from Supabase Auth
-    try:
-        user = supabase.auth.get_user(access_token).user
-        print("User info:", user)
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid access token")
+    # Get user info
+    async with httpx.AsyncClient() as client:
+        user_res = await client.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={"Authorization": f"Bearer {access_token}"}
+        )
 
-    email = user.email
-    name = user.user_metadata.get("full_name") or email.split("@")[0]
+    user = user_res.json()
+    email = user.get("email")
 
-    # 3. Ensure user exists in `users` table
-    res = supabase.from_("users").select("*").eq("email", email).maybe_single().execute()
-    if not res.data:
-        insert_res = supabase.from_("users").insert({
-            "username": name,
+    # Sync with users table if not exists
+    profile = supabase.from_("users").select("id").eq("email", email).maybe_single().execute()
+    if not profile.data:
+        supabase.from_("users").insert({
+            "username": email.split("@")[0],
             "email": email,
-            "auth_id": user.id,
-            "provider": "google"
+            "auth_id": user.get("id")
         }).execute()
-        if not insert_res.data:
-            raise HTTPException(status_code=500, detail="Failed to create user")
 
-    # 4. Redirect to frontend with cookies set
+    # ✅ Set cookies like email login and redirect frontend
     response = RedirectResponse(FRONTEND_REDIRECT)
-    response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="Lax", max_age=86400)
-    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="Lax", max_age=604800)
+    response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="Lax")
+    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="Lax")
     return response
-
-
-
-
-# @router.get("/callback")
-# def auth_callback(request: Request):
-#     access_token = request.query_params.get("access_token")
-#     refresh_token = request.query_params.get("refresh_token")
-
-#     if not access_token :
-#         raise HTTPException(status_code=400, detail="Missing tokens in callbackkkkk")
-
-#     try:
-#         user = supabase.auth.get_user(access_token).user
-#     except Exception as e:
-#         raise HTTPException(status_code=400, detail="Invalid token")
-
-#     response = RedirectResponse(url=f"{FRONTEND_REDIRECT}/dashboard")
-#     response.set_cookie(
-#         key="access_token", value=access_token,
-#         httponly=True, secure=False, samesite="Lax", max_age=60 * 60 * 24
-#     )
-#     response.set_cookie(
-#         key="refresh_token", value=refresh_token,
-#         httponly=True, secure=False, samesite="Lax", max_age=60 * 60 * 24 * 7
-#     )
-#     return response
-
-
-
-
-
-
-
 
 # --- Get current user ---
 # @router.get("/me")
