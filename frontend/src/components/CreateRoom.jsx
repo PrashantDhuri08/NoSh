@@ -20,10 +20,25 @@ const CreateRoom = () => {
   };
 
   return (
-    <form onSubmit={handleCreate}>
-      <h2>Create Room</h2>
-      <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Room Name" required />
-      <button type="submit">Create</button>
+    <form
+      onSubmit={handleCreate}
+      className="bg-white rounded-xl shadow-md p-6 max-w-md mx-auto mt-8 flex flex-col gap-4"
+    >
+      <h2 className="text-xl font-bold text-indigo-600 mb-2">Create Room</h2>
+      <input
+        type="text"
+        value={name}
+        onChange={e => setName(e.target.value)}
+        placeholder="Room Name"
+        required
+        className="border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+      />
+      <button
+        type="submit"
+        className="bg-indigo-600 text-white py-2 rounded-lg font-semibold hover:bg-indigo-700 transition"
+      >
+        Create
+      </button>
     </form>
   );
 };

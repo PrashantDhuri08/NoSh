@@ -1,7 +1,7 @@
 import os
 import time
 import mimetypes
-from typing import Optional, List
+from typing import Dict, Optional, List
 from fastapi import APIRouter, Form, File, UploadFile, Request, HTTPException
 from sb_client import get_supabase_client
 
@@ -31,14 +31,18 @@ async def upload_note(
         else:
             raise ValueError("Unsupported file type.")
 
+        # Use title for file name, sanitize and add extension
+        safe_title = "".join(c if c.isalnum() or c in (" ", "_", "-") else "_" for c in title).strip().replace(" ", "_")
         file_ext = mimetypes.guess_extension(content_type) or ".bin"
-        file_path = f"{user_id}/{int(time.time())}{file_ext}"
+        file_path = f"{user_id}/{safe_title}{file_ext}"
         file_bytes = await file.read()
 
-        supabase.storage.from_("note-files").upload(
+        upload_response = supabase.storage.from_("note-files").upload(
             path=file_path, file=file_bytes, file_options={"content-type": content_type}
         )
-        file_url = supabase.storage.from_("note-files").get_public_url(file_path)
+        # Use .get_public_url() correctly (returns dict with 'publicUrl')
+        file_url = supabase.storage.from_("note-files").create_signed_url(file_path, 3600)
+        # file_url = public_url_response.get("publicUrl") if isinstance(public_url_response, dict) else public_url_response
 
     # Note Insertion
     note_response = supabase.from_("notes").insert({
@@ -77,7 +81,31 @@ async def upload_note(
 
     return new_note
 
+# def create_signed_url(bucket: str, path: str, expires_in_seconds: int = 60, options: Optional[Dict] = None) -> str:
+    """
+    Create a time-limited signed URL for a file in a storage bucket.
+    Returns the signed URL string (raises on error).
+    """
+    if options is None:
+        options = {}
 
+    response = (
+        supabase.storage
+        .from_(bucket)
+        .create_signed_url(path, expires_in_seconds, options)
+    )
+
+    data = response.get("data") if isinstance(response, dict) else getattr(response, "data", None)
+    error = response.get("error") if isinstance(response, dict) else getattr(response, "error", None)
+
+    if error:
+        raise RuntimeError(f"Failed to create signed URL: {error}")
+
+    signed_url = data.get("signedUrl") if data else None
+    if not signed_url:
+        raise RuntimeError("No signedUrl returned from Supabase")
+
+    return signed_url
 # --- API Endpoint ---
 @router.post("/notes/upload")
 async def create_note_endpoint(
@@ -207,8 +235,8 @@ async def get_notes_by_room(room_id: int):
     return {"notes": response.data}
 
 
-@router.get("/notes/file-url")
-async def get_file_url( request: Request):
+@router.get("/notes/file-url/{note_id}")
+async def get_file_url(request: Request, note_id: int):
     access_token = request.cookies.get("access_token")
     if not access_token:
         raise HTTPException(status_code=401, detail="Not logged in")
@@ -219,14 +247,35 @@ async def get_file_url( request: Request):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Construct file path
-    file_path = f"5/1754227037.pdf"
+    # Fetch note to get file_url
+    note_response = supabase.from_("notes").select("file_url").eq("id", note_id).single().execute()
+    if not note_response.data or not note_response.data.get("file_url"):
+        raise HTTPException(status_code=404, detail="File not found for this note")
+
+    file_url = note_response.data["file_url"]
+    # Extract the file path from the public URL
+    # Example: https://<bucket-url>/note-files/<file_path>
+    # You need only the <file_path> part for create_signed_url
+    split_marker = "/note-files/"
+    if split_marker not in file_url:
+        raise HTTPException(status_code=400, detail="Invalid file URL format")
+    file_path = file_url.split(split_marker)[-1]
 
     try:
-        signed_url_response = supabase.storage.from_("note-files").create_signed_url(file_path, 3600, {"download": True})
-        return {"url": signed_url_response["signedURL"]}
+        # signed_url = create_signed_url("note-files", file_path, 3600, {"download": True})
+        # return {"url": file_url}
+        signed_response = supabase.storage.from_("note-files").create_signed_url(file_path, 3600)
+        signed_url = signed_response.get("signedURL") or signed_response.get("signedUrl")
+        if not signed_url:
+            raise Exception("Signed URL not returned")
+        return {"url": signed_url}
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate URL: {str(e)}")
+    
+
+
+
     
 
 
@@ -251,3 +300,37 @@ async def get_note(note_id: int):
         raise HTTPException(status_code=404, detail="Note not found")
     
     return { "content": response.data["content"] }
+
+@router.delete("/notes/{note_id}")
+async def delete_note(request: Request, note_id: int):
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    try:
+        user = supabase.auth.get_user(access_token).user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # First, delete related storage_buckets rows
+    supabase.from_("storage_buckets").delete().eq("note_id", note_id).execute()
+    # Now, delete the note itself
+    result = supabase.from_("notes").delete().eq("id", note_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Note not found or already deleted")
+    return {"status": "success", "message": "Note deleted"}
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(request: Request, room_id: int):
+    access_token = request.cookies.get("access_token")
+    if not access_token:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    try:
+        user = supabase.auth.get_user(access_token).user
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    # Optionally: check ownership before deleting
+    result = supabase.from_("rooms").delete().eq("id", room_id).execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Room not found or already deleted")
+    return {"status": "success", "message": "Room deleted"}

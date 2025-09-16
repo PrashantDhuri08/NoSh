@@ -6,8 +6,10 @@ export function useAuth() {
 
   useEffect(() => {
     axios.get("http://localhost:8000/auth/me", { withCredentials: true })
-      .then(res => setUser(res.data.user))
-      .catch(() => setUser(null));
+      .then(res => setUser(res.data.profile))
+      // .catch(() => setUser(null));
+
+    console.log(user);
   }, []);
 
   const logout = async () => {

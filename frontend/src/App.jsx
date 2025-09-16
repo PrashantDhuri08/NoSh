@@ -9,8 +9,11 @@ import RoomNotes from "./components/RoomNotes";
 import RoomNotesRealtime from "./components/RoomNotesRealtime";
 import { useParams } from "react-router-dom";
 import QuillCollaborativeEditor from "./components/CollaborativeEditor";
-
-
+import Navbar from "./components/Navbar/Navbar";
+import DashboardUpload from "./components/Dashboard/Dashboard";
+import RoomSelector from "./components/RoomSelector";
+import Callback from "./auth/Callback";
+import ProtectedRoute from "./auth/ProtectedRoute";
 function RoomNotesRealtimeWrapper() {
   const { roomId } = useParams();
   return <RoomNotesRealtime roomId={roomId} />;
@@ -21,16 +24,12 @@ function CollaborativeEditorWrapper() {
   return <QuillCollaborativeEditor noteId={noteId} />;
 }
 
-
 export default function App() {
   const { user, logout } = useAuth();
 
-
-  
-
   return (
     <Router>
-      <nav>
+      {/* <nav>
         <Link to="/">Home</Link>{" | "}
         {user ? (
           <>
@@ -43,20 +42,36 @@ export default function App() {
             <Link to="/signup">Signup</Link>
           </>
         )}
-      </nav>
+      </nav> */}
+
+      <Navbar user={user} logout={logout} />
 
       <Routes>
-        <Route path="/" element={<div>Welcome to Notes App</div>} />
+        <Route path="/" element={<DashboardUpload />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
+        <Route path="/callback" element={<Callback />} />
         {/* <Route path="/rooms/:roomId/notes" element={<RoomNotes />} /> */}
-        <Route path="/rooms/:roomId/notes" element={<RoomNotesRealtimeWrapper />} />
-        <Route path="/dashboard" element={<>
-          <CreateRoom />
-          <NoteUploadForm />
-        </>} />
-        <Route path="/notes/:noteId/edit" element={<CollaborativeEditorWrapper />} />
-
+        <Route
+          path="/rooms/:roomId/notes"
+          element={<RoomNotesRealtimeWrapper />}
+        />
+        <Route
+          path="/dashboard"
+          element={
+            // <ProtectedRoute>
+              <>
+                <RoomSelector />
+                <CreateRoom />
+                <NoteUploadForm />
+              </>
+           
+          }
+        />
+        <Route
+          path="/notes/:noteId/edit"
+          element={<CollaborativeEditorWrapper />}
+        />
       </Routes>
     </Router>
   );

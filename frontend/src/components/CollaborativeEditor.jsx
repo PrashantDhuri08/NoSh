@@ -16,55 +16,59 @@ const QuillSocketEditor = ({ noteId }) => {
   const quillRef = useRef(null);
 
   useEffect(() => {
-    // Setup Socket.IO
+    if (!quillRef.current) {
+      const quill = new Quill(editorRef.current, {
+        theme: "snow",
+        modules: { toolbar: TOOLBAR_OPTIONS },
+      });
+      quill.disable();
+      quill.setText("Loading...");
+      quillRef.current = quill;
+    }
+
     socketRef.current = io("http://localhost:4000");
     socketRef.current.emit("join-room", noteId);
 
-    // Setup Quill
-    const quill = new Quill(editorRef.current, {
-      theme: "snow",
-      modules: { toolbar: TOOLBAR_OPTIONS },
-    });
-    quill.disable();
-    quill.setText("Loading...");
-    quillRef.current = quill;
-
-    // Load existing note
     socketRef.current.on("load-note", (content) => {
-      quill.setText(content || ""); // plain text
-      quill.enable();
+      quillRef.current.setContents(content);
+      quillRef.current.enable();
     });
 
-    // Listen for changes
-    quill.on("text-change", (delta, oldDelta, source) => {
+    socketRef.current.on("receive-changes", (delta) => {
+      quillRef.current.updateContents(delta);
+    });
+
+    const quill = quillRef.current;
+    const handleChange = (delta, oldDelta, source) => {
       if (source !== "user") return;
       socketRef.current.emit("send-changes", { noteId, delta });
-    });
+    };
+    quill.on("text-change", handleChange);
 
-    // Apply remote changes
-    socketRef.current.on("receive-changes", (delta) => {
-      quill.updateContents(delta);
-    });
-
-    // Periodic save
     const interval = setInterval(() => {
       socketRef.current.emit("save-note", {
         noteId,
-        data: quill.getText(), // plain text
+        data: quill.getContents(),
       });
     }, 2000);
 
     return () => {
       clearInterval(interval);
       socketRef.current.disconnect();
+      quill.off("text-change", handleChange);
     };
   }, [noteId]);
 
   return (
-    <div
-      ref={editorRef}
-      style={{ height: "400px", backgroundColor: "white" }}
-    />
+    <div className="max-w-4xl mx-auto mt-8 p-6 bg-white rounded-xl shadow-lg border border-gray-200">
+      <h2 className="text-2xl font-bold mb-4 text-indigo-700">
+        Collaborative Note Editor
+      </h2>
+      <div
+        ref={editorRef}
+        className="bg-gray-50 min-h-[400px] rounded-md overflow-hidden border border-gray-300"
+      />
+    </div>
   );
 };
 
