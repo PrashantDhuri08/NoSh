@@ -90,8 +90,8 @@ def login(payload: SignUpRequest):
         refresh_token = result.session.refresh_token
 
         response = JSONResponse(content={"message": "Login successful"})
-        response.set_cookie("access_token", access_token, httponly=True, secure=False, samesite="Lax", max_age=86400)
-        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=False, samesite="Lax", max_age=604800)
+        response.set_cookie("access_token", access_token, httponly=True, secure=True, samesite="none", max_age=86400)
+        response.set_cookie("refresh_token", refresh_token, httponly=True, secure=True, samesite="none", max_age=604800)
         return response
     except AuthApiError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -166,15 +166,32 @@ async def get_me(user=Depends(get_current_user)):
 
 
 
-# --- Logout ---
+# # --- Logout ---
+# @router.post("/logout")
+# def logout():
+#     response = JSONResponse(content={"message": "Logged out"})
+#     response.delete_cookie("access_token")
+#     response.delete_cookie("refresh_token")
+#     return response
+
+
+
 @router.post("/logout")
 def logout():
     response = JSONResponse(content={"message": "Logged out"})
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    response.delete_cookie(
+        key="access_token",
+        httponly=True,
+        secure=True,
+        samesite="none"
+    )
+    response.delete_cookie(
+        key="refresh_token",
+        httponly=True,
+        secure=True,
+        samesite="none"
+    )
     return response
-
-
 
 # --- Google OAuth Login ---
 @router.get("/google/login")
