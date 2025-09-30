@@ -64,7 +64,7 @@ export default function Navbar() {
           <div className="flex items-center">
             <Link href="/dashboard" className="flex items-center space-x-2">
               <Image
-                src="/noshlogo.png"
+                src="/NoshLogo.png"
                 alt="NoSh Logo"
                 width={32}
                 height={32}
