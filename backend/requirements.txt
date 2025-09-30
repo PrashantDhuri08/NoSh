@@ -13,3 +13,4 @@ python-jose[cryptography]
 supabase
 gotrue
 dotenv
+python-multipart
