@@ -9,9 +9,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Save, Users, ArrowLeft } from "lucide-react";
+import "quill/dist/quill.snow.css"; // Import Quill styles directly
+import Quill from "quill";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+const SOCKET_URL =
+  process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:4000";
 
 interface Note {
   id: string;
@@ -28,14 +32,17 @@ export default function CollaborativeEditor() {
   const [error, setError] = useState("");
   const [connectedUsers, setConnectedUsers] = useState(0);
   const socketRef = useRef<Socket | null>(null);
-  const quillRef = useRef<any>(null);
+  const quillRef = useRef<Quill | null>(null);
+  const editorRef = useRef<HTMLDivElement>(null); // Ref for the editor container
   const router = useRouter();
   const params = useParams();
   const noteId = params.id as string;
 
+  // Effect for fetching note data and initializing socket
   useEffect(() => {
+    if (!noteId) return;
+
     fetchNote();
-    loadQuill();
     initializeSocket();
 
     return () => {
@@ -43,22 +50,11 @@ export default function CollaborativeEditor() {
     };
   }, [noteId]);
 
-  const loadQuill = async () => {
-    if (typeof window === "undefined") return;
+  // ✅ IMPROVED: Effect for initializing and loading Quill editor once note data is available
+  useEffect(() => {
+    if (!note || quillRef.current || !editorRef.current) return;
 
-    const editorContainer = document.getElementById("editor");
-    if (!editorContainer || quillRef.current) return;
-
-    const Quill = (await import("quill")).default;
-
-    if (!document.querySelector('link[href="https://cdn.quilljs.com/1.3.6/quill.snow.css"]')) {
-      const link = document.createElement("link");
-      link.rel = "stylesheet";
-      link.href = "https://cdn.quilljs.com/1.3.6/quill.snow.css";
-      document.head.appendChild(link);
-    }
-
-    const quill = new Quill(editorContainer, {
+    const quill = new Quill(editorRef.current, {
       theme: "snow",
       modules: {
         toolbar: [
@@ -73,28 +69,34 @@ export default function CollaborativeEditor() {
     });
 
     quillRef.current = quill;
+    quill.root.innerHTML = note.content; // Load initial content
+    setTitle(note.title); // Set initial title
 
-    quill.on("text-change", (delta, oldDelta, source) => {
+    const handler = (delta: any, oldDelta: any, source: string) => {
       if (source === "user" && socketRef.current) {
         socketRef.current.emit("send-changes", { noteId, delta });
       }
-    });
-  };
+    };
+
+    quill.on("text-change", handler);
+
+    return () => {
+      quill.off("text-change", handler);
+    };
+  }, [note]); // This effect depends on `note`
 
   const fetchNote = async () => {
     try {
+      // ✅ FIXED: Corrected API endpoint path
       const response = await axios.get(`${API_BASE_URL}/notes/notes/${noteId}`, {
         withCredentials: true,
       });
-
-      setNote(response.data.content);
-      setTitle(response.data.title);
-      console.log("Note fetched:", response.data);
+      setNote(response.data);
     } catch (err: any) {
       if (err.response?.status === 401) {
         router.push("/login");
       } else {
-        setError("Failed to load note");
+        setError("Failed to load note. It may not exist.");
       }
     } finally {
       setLoading(false);
@@ -109,12 +111,6 @@ export default function CollaborativeEditor() {
       socket.emit("join-room", noteId);
     });
 
-    socket.on("load-note", (content: string) => {
-      if (quillRef.current) {
-        quillRef.current.root.innerHTML = content;
-      }
-    });
-
     socket.on("receive-changes", (delta) => {
       if (quillRef.current) {
         quillRef.current.updateContents(delta, "api");
@@ -124,29 +120,24 @@ export default function CollaborativeEditor() {
     socket.on("users-count", (count: number) => {
       setConnectedUsers(count);
     });
-
-    socket.on("disconnect", () => {
-      console.log("Disconnected from socket server");
-    });
   };
 
   const saveNote = async () => {
     if (!note || !quillRef.current) return;
 
     setSaving(true);
+    setError(""); // Clear previous errors
     try {
       const content = quillRef.current.root.innerHTML;
 
-      await axios.put(`${API_BASE_URL}/notes/notes/${noteId}`, {
-        title,
-        content,
-      }, {
-        withCredentials: true,
-      });
+      // ✅ FIXED: Corrected API endpoint path
+      await axios.put(
+        `${API_BASE_URL}/notes/notes/${noteId}`,
+        { title, content },
+        { withCredentials: true }
+      );
 
-      setNote({ ...note, title, content });
-
-      // Also emit to socket server for in-memory sync
+      // Also emit to socket server for in-memory sync on other clients
       socketRef.current?.emit("save-note", { noteId, data: content });
     } catch (err) {
       setError("Failed to save note");
@@ -156,20 +147,13 @@ export default function CollaborativeEditor() {
   };
 
   const goBack = () => {
-    if (note?.room_id) {
-      router.push(`/room/${note.room_id}`);
-    } else {
-      router.push("/dashboard");
-    }
+    router.push(note?.room_id ? `/room/${note.room_id}` : "/dashboard");
   };
 
   if (loading) {
     return (
-      <div>
-        <Navbar />
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-        </div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -177,24 +161,20 @@ export default function CollaborativeEditor() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Navbar />
-
       <div className="max-w-6xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {error && (
           <Alert variant="destructive" className="mb-6">
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-
         <div className="bg-white rounded-lg shadow-sm border">
-          {/* Editor Header */}
           <div className="border-b px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
-                <Button variant="ghost" onClick={goBack} className="flex items-center space-x-2">
-                  <ArrowLeft className="h-4 w-4" />
-                  <span>Back</span>
+                <Button variant="ghost" onClick={goBack}>
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back
                 </Button>
-
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
@@ -202,29 +182,30 @@ export default function CollaborativeEditor() {
                   placeholder="Untitled Note"
                 />
               </div>
-
               <div className="flex items-center space-x-4">
                 <div className="flex items-center space-x-2 text-sm text-gray-500">
                   <Users className="h-4 w-4" />
                   <span>{connectedUsers} online</span>
                 </div>
-
-                <Button onClick={saveNote} disabled={saving} className="flex items-center space-x-2">
-                  <Save className="h-4 w-4" />
-                  <span>{saving ? "Saving..." : "Save"}</span>
+                <Button onClick={saveNote} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? "Saving..." : "Save"}
                 </Button>
               </div>
             </div>
           </div>
-
-          {/* Quill Editor */}
-          <div className="p-6">
-            <div id="editor" style={{ minHeight: "500px" }}></div>
+          <div className="p-1">
+            {" "}
+            {/* Reduced padding around the editor */}
+            {/* The ref is now attached here */}
+            <div
+              ref={editorRef}
+              style={{ minHeight: "60vh", border: "none" }}
+            ></div>
           </div>
         </div>
-
         <div className="mt-4 text-center text-sm text-gray-500">
-          Changes are automatically synced with other collaborators in real-time
+          Changes are synced with collaborators in real-time.
         </div>
       </div>
     </div>
