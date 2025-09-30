@@ -16,7 +16,8 @@ interface User {
 }
 
 export default function Navbar() {
-  const [user, setUser] = useState<User | null>(null)
+  // const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState(null)
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const router = useRouter()
 
@@ -29,7 +30,7 @@ export default function Navbar() {
       const response = await axios.get(`${API_BASE_URL}/auth/me`, {
         withCredentials: true
       })
-      setUser(response.data)
+      setUser(response.data.profile.username)
     } catch (error) {
       // User not authenticated
       setUser(null)
@@ -79,7 +80,8 @@ export default function Navbar() {
                 </Link>
                 
                 <div className="flex items-center space-x-4 border-l pl-4">
-                  <span className="text-sm text-gray-700">Welcome, {user.name}</span>
+                  <span className="text-lg text-gray-700">Welcome </span>
+                  <span className="text-lg text-black "> {user}</span>
                   <Button
                     onClick={handleLogout}
                     variant="outline"

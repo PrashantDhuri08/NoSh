@@ -1,99 +1,98 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import axios from 'axios'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { FileText, Users, Plus, Upload, ArrowRight } from 'lucide-react'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import CreateRoomForm from '@/components/create-room-form'
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import axios from "axios";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import Navbar from "@/components/navbar";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { FileText, Users, Plus, Upload, ArrowRight } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import CreateRoomForm from "@/components/create-room-form";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000'
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 interface Room {
-  id: string
-  name: string
-  description: string
-  created_at: string
-  notes_count: number
-  members_count: number
+  id: string;
+  name: string;
+  description: string;
+  created_at: string;
+  notes_count: number;
+  members_count: number;
 }
 
-export default function Dashboard() {
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [roomId, setRoomId] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
-  const router = useRouter()
-  const [showCreateRoom, setShowCreateRoom] = useState(false)
+export default function Home() {
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [roomId, setRoomId] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const router = useRouter();
+  const [showCreateRoom, setShowCreateRoom] = useState(false);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const response = await fetch('/api/auth/check', {
-          credentials: 'include'
-        })
-        if (!response.ok) {
-          router.push('/login')
-        }
-      } catch (error) {
-        router.push('/login')
-      }
-    }
+    // const checkAuth = async () => {
+    //   try {
+    //     const response = await fetch("/api/auth/check", {
+    //       credentials: "include",
+    //     });
+    //     if (!response.ok) {
+    //       // router.push("/login");
+    //     }
+    //   } catch (error) {
+    //     // router.push("/login");
+    //   }
+    // };
 
-    checkAuth()
-    fetchRooms()
-  }, [router])
+    // checkAuth();
+    fetchRooms();
+  }, [router]);
 
   const fetchRooms = async () => {
     try {
-      const response = await axios.get(`${API_BASE_URL}/rooms/`)
-      setRooms(response.data)
+      const response = await axios.get(`${API_BASE_URL}/notes/your-api/rooms/list`, {
+        withCredentials: true,
+      });
+      setRooms(response.data.rooms || []);
     } catch (err: any) {
-      setError('Failed to fetch rooms. Please check your connection.')
+      router.push("/login");
+      setError("Failed to fetch rooms. Please check your connection or login first");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const joinRoom = (id: string) => {
-    router.push(`/room/${id}`)
-  }
+    router.push(`/room/${id}`);
+  };
 
   const joinRoomById = () => {
     if (roomId.trim()) {
-      router.push(`/room/${roomId.trim()}`)
+      router.push(`/room/${roomId.trim()}`);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
-    )
+    );
   }
 
   return (
+    <><Navbar/>
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-8 w-8 text-blue-600" />
-              <span className="text-xl font-bold text-gray-900">CollabNotes</span>
-            </div>
-            <Badge variant="secondary" className="text-sm">
-              {rooms.length} Active Rooms
-            </Badge>
-          </div>
-        </div>
-      </div>
-
+     
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {error && (
           <Alert variant="destructive" className="mb-6">
@@ -124,7 +123,7 @@ export default function Dashboard() {
                   placeholder="Enter Room ID"
                   value={roomId}
                   onChange={(e) => setRoomId(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && joinRoomById()}
+                  onKeyPress={(e) => e.key === "Enter" && joinRoomById()}
                 />
                 <Button onClick={joinRoomById} disabled={!roomId.trim()}>
                   <ArrowRight className="h-4 w-4" />
@@ -154,7 +153,9 @@ export default function Dashboard() {
             <Card>
               <CardContent className="text-center py-12">
                 <Users className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No rooms available</h3>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                  No rooms available
+                </h3>
                 <p className="text-gray-500">
                   Create a room on your backend or wait for rooms to be created
                 </p>
@@ -163,7 +164,10 @@ export default function Dashboard() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {rooms.map((room) => (
-                <Card key={room.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                <Card
+                  key={room.id}
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                >
                   <CardHeader>
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">{room.name}</CardTitle>
@@ -212,8 +216,8 @@ export default function Dashboard() {
               <CardContent>
                 <CreateRoomForm
                   onSuccess={(roomId) => {
-                    setShowCreateRoom(false)
-                    router.push(`/room/${roomId}`)
+                    setShowCreateRoom(false);
+                    router.push(`/room/${roomId}`);
                   }}
                   onCancel={() => setShowCreateRoom(false)}
                 />
@@ -256,5 +260,6 @@ export default function Dashboard() {
         </div>
       </div>
     </div>
-  )
+    </>
+  );
 }

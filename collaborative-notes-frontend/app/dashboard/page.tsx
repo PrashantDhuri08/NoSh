@@ -63,6 +63,7 @@ export default function Dashboard() {
       if (err.response?.status === 401) {
         router.push("/login");
       } else {
+        router.push("/login");
         setError("Failed to fetch rooms. Please try again.");
       }
     } finally {
@@ -88,6 +89,24 @@ export default function Dashboard() {
     setRooms([normalizedRoom, ...rooms]);
     setShowCreateModal(false);
   };
+
+  const handleDeleteRoom = async (roomId: string) => {
+  const confirmDelete = confirm("Are you sure you want to delete this room?");
+  if (!confirmDelete) return;
+
+  try {
+    await axios.delete(`${API_BASE_URL}/notes/rooms/${roomId}`, {
+      withCredentials: true,
+    });
+
+    // Remove deleted room from state
+    setRooms((prevRooms) => prevRooms.filter((room) => room.id !== roomId));
+  } catch (error) {
+    console.error("Error deleting room:", error);
+    setError("Failed to delete room. Please try again.");
+  }
+};
+
 
   const handleRoomInput = (e: React.FormEvent) => {
     e.preventDefault();
@@ -170,7 +189,7 @@ export default function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">
                     Total Rooms
                   </p>
-                  {/* <p className="text-2xl font-bold text-gray-900">{rooms.length}</p> */}
+                  <p className="text-2xl font-bold text-gray-900">{rooms.length}</p>
                 </div>
               </div>
             </CardContent>
@@ -185,7 +204,7 @@ export default function Dashboard() {
                     Total Notes
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {/* {rooms.reduce((sum, room) => sum + (room.notes_count || 0), 0)} */}
+                    {rooms.reduce((sum, room) => sum + (room.notes_count || 0), 0)}
                   </p>
                 </div>
               </div>
@@ -201,10 +220,10 @@ export default function Dashboard() {
                     Active Today
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {/* {rooms.filter(room => {
+                    {rooms.filter(room => {
                       const today = new Date().toDateString()
                       return new Date(room.created_at).toDateString() === today
-                    }).length} */}
+                    }).length}
                   </p>
                 </div>
               </div>
@@ -267,14 +286,34 @@ export default function Dashboard() {
                     <span className="text-xs text-gray-400">
                       Created {new Date(room.created_at).toLocaleDateString()}
                     </span>
-                    <Button
+                    {/* <Button
                       onClick={() => openRoom(room.id)}
                       size="sm"
                       className="flex items-center space-x-1"
                     >
                       <span>Open</span>
                       <ArrowRight className="h-3 w-3" />
-                    </Button>
+                    </Button> */}
+
+                    <div className="flex space-x-2">
+  <Button
+    onClick={() => openRoom(room.id)}
+    size="sm"
+    className="flex items-center space-x-1"
+  >
+    <span>Open</span>
+    <ArrowRight className="h-3 w-3" />
+  </Button>
+
+  <Button
+    variant="destructive"
+    size="sm"
+    onClick={() => handleDeleteRoom(room.id)}
+  >
+    Delete
+  </Button>
+</div>
+
                   </div>
                 </CardContent>
               </Card>

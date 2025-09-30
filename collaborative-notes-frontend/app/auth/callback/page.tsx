@@ -16,7 +16,7 @@ export default function CallbackPage() {
 
     if (accessToken && refreshToken) {
       axios
-        .post("http://localhost:8000/auth/store-token", {
+        .post("http://localhost:8000/auth/auth/store-token", {
           access_token: accessToken,
           refresh_token: refreshToken,
         })

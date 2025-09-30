@@ -117,14 +117,27 @@ async def create_note_endpoint(
     file: Optional[UploadFile] = File(None),
 ):
     # Step 1: Get Supabase Auth session from cookie
+    # access_token = request.cookies.get("access_token")
+    # if not access_token:
+    #     raise HTTPException(status_code=401, detail="Authentication cookie missing.")
+
+    # try:
+    #     user =  supabase.auth.get_user(access_token).user
+    #     email = user.email
+    #     print(user.email)
+    # except Exception:
+    #     raise HTTPException(status_code=401, detail="Invalid or expired token.")
+
+
     access_token = request.cookies.get("access_token")
     if not access_token:
         raise HTTPException(status_code=401, detail="Authentication cookie missing.")
 
+    supabase = get_supabase_client(access_token)  # ✅ new per-request client
+
     try:
-        user =  supabase.auth.get_user(access_token).user
+        user = supabase.auth.get_user(access_token).user
         email = user.email
-        print(user.email)
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token.")
 
@@ -197,6 +210,36 @@ def create_room(request: Request, name: str = Form(...)):
         raise HTTPException(status_code=500, detail=f"Room creation failed: {str(e)}")
 
 
+# @router.get("/your-api/rooms/list")
+# async def list_rooms(request: Request):
+#     # Step 1: Get access token from cookie
+#     access_token = request.cookies.get("access_token")
+#     if not access_token:
+#         raise HTTPException(status_code=401, detail="Not logged in")
+
+#     # Step 2: Validate token and get user email
+#     try:
+#         user = supabase.auth.get_user(access_token).user
+#         email = user.email
+#     except Exception:
+#         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+#     # Step 3: Get internal user ID
+#     try:
+#         profile_response = supabase.from_("users").select("id").eq("email", email).single().execute()
+#         user_id = profile_response.data["id"]
+#     except Exception:
+#         raise HTTPException(status_code=404, detail="User not found")
+
+#     # Step 4: Fetch rooms created by user
+#     try:
+#         rooms_response = supabase.from_("rooms").select("*").eq("created_by", user_id).execute()
+#         rooms = rooms_response.data or []
+#         return {"status": "success", "rooms": rooms}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
+
+
 @router.get("/your-api/rooms/list")
 async def list_rooms(request: Request):
     # Step 1: Get access token from cookie
@@ -222,6 +265,12 @@ async def list_rooms(request: Request):
     try:
         rooms_response = supabase.from_("rooms").select("*").eq("created_by", user_id).execute()
         rooms = rooms_response.data or []
+
+        # Count notes for each room
+        for room in rooms:
+            note_count_response = supabase.from_("notes").select("id", count="exact").eq("room_id", room["id"]).execute()
+            room["notes_count"] = note_count_response.count or 0
+
         return {"status": "success", "rooms": rooms}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
@@ -319,6 +368,22 @@ async def delete_note(request: Request, note_id: int):
         raise HTTPException(status_code=404, detail="Note not found or already deleted")
     return {"status": "success", "message": "Note deleted"}
 
+# @router.delete("/rooms/{room_id}")
+# async def delete_room(request: Request, room_id: int):
+#     access_token = request.cookies.get("access_token")
+#     if not access_token:
+#         raise HTTPException(status_code=401, detail="Not logged in")
+#     try:
+#         user = supabase.auth.get_user(access_token).user
+#     except Exception:
+#         raise HTTPException(status_code=401, detail="Invalid token")
+
+#     # Optionally: check ownership before deleting
+#     result = supabase.from_("rooms").delete().eq("id", room_id).execute()
+#     if not result.data:
+#         raise HTTPException(status_code=404, detail="Room not found or already deleted")
+#     return {"status": "success", "message": "Room deleted"}
+
 @router.delete("/rooms/{room_id}")
 async def delete_room(request: Request, room_id: int):
     access_token = request.cookies.get("access_token")
@@ -329,8 +394,26 @@ async def delete_room(request: Request, room_id: int):
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
 
-    # Optionally: check ownership before deleting
-    result = supabase.from_("rooms").delete().eq("id", room_id).execute()
-    if not result.data:
-        raise HTTPException(status_code=404, detail="Room not found or already deleted")
-    return {"status": "success", "message": "Room deleted"}
+    try:
+        # Step 1: Delete all notes in the room
+        notes_result = supabase.from_("notes").select("id").eq("room_id", room_id).execute()
+        note_ids = [note["id"] for note in notes_result.data] if notes_result.data else []
+
+        # Step 2: Delete related storage entries first
+        for note_id in note_ids:
+            supabase.from_("storage_buckets").delete().eq("note_id", note_id).execute()
+            supabase.from_("note_tags").delete().eq("note_id", note_id).execute()
+
+        # Step 3: Delete the notes
+        if note_ids:
+            supabase.from_("notes").delete().in_("id", note_ids).execute()
+
+        # Step 4: Now delete the room
+        result = supabase.from_("rooms").delete().eq("id", room_id).execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Room not found or already deleted")
+
+        return {"status": "success", "message": "Room and associated notes deleted"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete room: {str(e)}")
+
