@@ -144,15 +144,7 @@ export default function Login() {
               >
                 Sign up
               </Link>
-              <Button
-                type="button"
-                onClick={handleGoogleLogin}
-                variant="outline"
-                className="w-full flex items-center justify-center space-x-2"
-              >
-                <FcGoogle className="h-5 w-5" />
-                <span>Continue with Google</span>
-              </Button>
+             
             </div>
           </form>
         </CardContent>
