@@ -77,6 +77,28 @@ async def signup(payload: SignUpRequest):
     return {"user_id": auth_uuid, "email": email}
 
 
+@router.get("/check-user")
+async def check_user(auth_id: str):
+    profile_response = supabase.from_("users").select("id").eq("auth_id", auth_id).single().execute()
+    if not profile_response.data:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "exists"}
+
+@router.post("/sync-user")
+async def sync_user(payload: dict):
+    # Hash password, insert into users table
+    hashed_pw = hash_password(payload["password"])
+    profile_response = supabase.from_("users").insert({
+        "username": payload["username"],
+        "email": payload["email"],
+        "password": hashed_pw,
+        "auth_id": payload["auth_id"]
+    }).execute()
+    if not profile_response.data:
+        raise HTTPException(status_code=500, detail="Failed to sync user profile.")
+    return {"status": "success"}
+
+
 # --- Sign in (set cookies) ---
 @router.post("/signin")
 def login(payload: SignUpRequest):

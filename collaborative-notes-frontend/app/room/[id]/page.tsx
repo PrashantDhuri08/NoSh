@@ -24,6 +24,7 @@ import {
   Eye,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import api from "@/app/lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -54,7 +55,7 @@ export default function RoomPage() {
 
   const fetchNotes = async () => {
     try {
-      const response = await axios.get(
+      const response = await api.get(
         `${API_BASE_URL}/notes/by-room/${roomId}`,
         {
           withCredentials: true,
@@ -86,7 +87,7 @@ export default function RoomPage() {
     if (!confirm("Are you sure you want to delete this note?")) return;
 
     try {
-      await axios.delete(`${API_BASE_URL}/notes/notes/${noteId}`, {
+      await api.delete(`${API_BASE_URL}/notes/notes/${noteId}`, {
         withCredentials: true,
       });
       setNotes(notes.filter((note) => note.id !== noteId));
@@ -105,7 +106,7 @@ export default function RoomPage() {
 
   const downloadFile = async (noteId: string, fileName: string) => {
     try {
-      const response = await axios.get(
+      const response = await api.get(
         `${API_BASE_URL}/notes/notes/file-url/${noteId}`,
         { withCredentials: true }
       );

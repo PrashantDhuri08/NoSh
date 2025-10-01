@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, X } from "lucide-react";
+import api from "@/app/lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -68,11 +69,11 @@ export default function CreateRoomForm({
       const formPayload = new FormData();
       formPayload.append("name", formData.name.trim());
 
-      const response = await axios.post(
+      const response = await api.post(
         `${API_BASE_URL}/notes/rooms/create`,
         formPayload,
         {
-          withCredentials: true,
+         
           headers: {
             "Content-Type": "multipart/form-data",
           },

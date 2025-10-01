@@ -2,7 +2,7 @@ import os
 import time
 import mimetypes
 from typing import Dict, Optional, List
-from fastapi import APIRouter, Form, File, UploadFile, Request, HTTPException
+from fastapi import APIRouter, Form, File, UploadFile, Request, HTTPException, Header, Depends
 from sb_client import get_supabase_client
 
 supabase = get_supabase_client()
@@ -81,6 +81,22 @@ async def upload_note(
 
     return new_note
 
+
+async def get_token_from_header(authorization: str = Header(...)):
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+    
+    parts = authorization.split()
+
+    if parts[0].lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Authorization header must start with Bearer")
+    elif len(parts) == 1:
+        raise HTTPException(status_code=401, detail="Token not found")
+    elif len(parts) > 2:
+        raise HTTPException(status_code=401, detail="Authorization header must be Bearer token")
+
+    return parts[1]
+
 # def create_signed_url(bucket: str, path: str, expires_in_seconds: int = 60, options: Optional[Dict] = None) -> str:
     """
     Create a time-limited signed URL for a file in a storage bucket.
@@ -115,25 +131,9 @@ async def create_note_endpoint(
     content: Optional[str] = Form(None),
     tags: Optional[str] = Form(None),
     file: Optional[UploadFile] = File(None),
+    access_token: str = Depends(get_token_from_header),
 ):
-    # Step 1: Get Supabase Auth session from cookie
-    # access_token = request.cookies.get("access_token")
-    # if not access_token:
-    #     raise HTTPException(status_code=401, detail="Authentication cookie missing.")
-
-    # try:
-    #     user =  supabase.auth.get_user(access_token).user
-    #     email = user.email
-    #     print(user.email)
-    # except Exception:
-    #     raise HTTPException(status_code=401, detail="Invalid or expired token.")
-
-
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Authentication cookie missing.")
-
-    supabase = get_supabase_client(access_token)  # ✅ new per-request client
+   
 
     try:
         user = supabase.auth.get_user(access_token).user
@@ -176,12 +176,55 @@ async def create_note_endpoint(
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 
-@router.post("/rooms/create")
-def create_room(request: Request, name: str = Form(...)):
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not logged in")
 
+# @router.post("/rooms/create")
+# def create_room(
+#     name: str = Form(...),
+#     access_token: str = Depends(get_token_from_header)
+# ):
+#     # Step 1: Validate token and get user
+#     try:
+#         user = supabase.auth.get_user(access_token).user
+#         email = user.email
+#     except Exception:
+#         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+#     # Step 2: ✅ FIXED: "Get-or-Create" the user profile in your public 'users' table
+#     try:
+#         # This single 'upsert' command finds the user by email,
+#         # creates them if they don't exist, and returns their profile.
+#         profile_response = supabase.from_("users").insert({
+#             "email": email,
+#             "auth_id": user.id,
+#             "username": user.user_metadata.get("full_name", email.split('@')[0])
+#         }, on_conflict="email").execute()
+
+#         user_id = profile_response.data[0]["id"]
+
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to get or create user profile: {str(e)}")
+
+#     # Step 3: Insert room with the guaranteed user_id
+#     try:
+#         room_response = supabase.from_("rooms").insert({
+#             "name": name,
+#             "created_by": user_id
+#         }).execute()
+
+#         if not room_response.data:
+#             # Check for a specific error from Supabase if possible
+#             error_message = room_response.error.message if room_response.error else "Unknown error"
+#             raise Exception(f"Failed to create room: {error_message}")
+
+#         return {"status": "success", "room": room_response.data[0]}
+#     except Exception as e:
+        
+#         raise HTTPException(status_code=500, detail=f"Room creation failed: {str(e)}")
+    
+    
+@router.post("/rooms/create")
+def create_room(request: Request, name: str = Form(...),access_token: str = Depends(get_token_from_header)):
+  
     try:
         user = supabase.auth.get_user(access_token).user
         email = user.email
@@ -210,42 +253,11 @@ def create_room(request: Request, name: str = Form(...)):
         raise HTTPException(status_code=500, detail=f"Room creation failed: {str(e)}")
 
 
-# @router.get("/your-api/rooms/list")
-# async def list_rooms(request: Request):
-#     # Step 1: Get access token from cookie
-#     access_token = request.cookies.get("access_token")
-#     if not access_token:
-#         raise HTTPException(status_code=401, detail="Not logged in")
-
-#     # Step 2: Validate token and get user email
-#     try:
-#         user = supabase.auth.get_user(access_token).user
-#         email = user.email
-#     except Exception:
-#         raise HTTPException(status_code=401, detail="Invalid or expired token")
-
-#     # Step 3: Get internal user ID
-#     try:
-#         profile_response = supabase.from_("users").select("id").eq("email", email).single().execute()
-#         user_id = profile_response.data["id"]
-#     except Exception:
-#         raise HTTPException(status_code=404, detail="User not found")
-
-#     # Step 4: Fetch rooms created by user
-#     try:
-#         rooms_response = supabase.from_("rooms").select("*").eq("created_by", user_id).execute()
-#         rooms = rooms_response.data or []
-#         return {"status": "success", "rooms": rooms}
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
-
 
 @router.get("/your-api/rooms/list")
-async def list_rooms(request: Request):
+async def list_rooms(access_token: str = Depends(get_token_from_header)):
     # Step 1: Get access token from cookie
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not logged in")
+   
 
     # Step 2: Validate token and get user email
     try:
@@ -276,6 +288,48 @@ async def list_rooms(request: Request):
         raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
 
 
+
+# @router.get("/your-api/rooms/list")
+# async def list_rooms(access_token: str = Depends(get_token_from_header)):
+#     # Step 1 & 2: Validate token and get user email (This part is correct)
+#     try:
+#         user = supabase.auth.get_user(access_token).user
+#         email = user.email
+#     except Exception:
+#         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+#     # Step 3: ✅ FIXED: Get or Create the user profile in your 'users' table
+#     try:
+#         # 'upsert' will INSERT the user if their email is new,
+#         # or do nothing if a profile already exists.
+#         # This automatically syncs new users.
+#         profile_response = supabase.from_("users").upsert({
+#             "email": email,
+#             "auth_id": user.id,
+#             "username": user.user_metadata.get("full_name", email.split('@')[0])
+#         }, on_conflict="email").execute()
+
+#         if not profile_response.data:
+#             raise Exception("Upsert operation failed to return user profile.")
+
+#         user_id = profile_response.data[0]["id"]
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to get or create user profile: {str(e)}")
+
+#     # Step 4: Fetch rooms created by user (This part is now safe to run)
+#     try:
+#         rooms_response = supabase.from_("rooms").select("*").eq("created_by", user_id).execute()
+#         rooms = rooms_response.data or []
+
+#         # Count notes for each room
+#         for room in rooms:
+#             note_count_response = supabase.from_("notes").select("id", count="exact").eq("room_id", room["id"]).execute()
+#             room["notes_count"] = note_count_response.count or 0
+
+#         return {"status": "success", "rooms": rooms}
+#     except Exception as e:
+#         raise HTTPException(status_code=500, detail=f"Failed to fetch rooms: {str(e)}")
+
 @router.get("/by-room/{room_id}")
 async def get_notes_by_room(room_id: int):
     response = supabase.from_("notes").select("*").eq("room_id", room_id).execute()
@@ -285,11 +339,8 @@ async def get_notes_by_room(room_id: int):
 
 
 @router.get("/notes/file-url/{note_id}")
-async def get_file_url(request: Request, note_id: int):
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not logged in")
-
+async def get_file_url(request: Request, note_id: int, access_token: str = Depends(get_token_from_header)):
+   
     try:
         user = supabase.auth.get_user(access_token).user
         user_id = user.id
@@ -351,10 +402,10 @@ async def get_note(note_id: int):
     return { "content": response.data["content"] }
 
 @router.delete("/notes/{note_id}")
-async def delete_note(request: Request, note_id: int):
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not logged in")
+async def delete_note(request: Request, note_id: int,access_token: str = Depends(get_token_from_header)):
+    # access_token = request.cookies.get("access_token")
+    # if not access_token:
+    #     raise HTTPException(status_code=401, detail="Not logged in")
     try:
         user = supabase.auth.get_user(access_token).user
     except Exception:
@@ -385,10 +436,10 @@ async def delete_note(request: Request, note_id: int):
 #     return {"status": "success", "message": "Room deleted"}
 
 @router.delete("/rooms/{room_id}")
-async def delete_room(request: Request, room_id: int):
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        raise HTTPException(status_code=401, detail="Not logged in")
+async def delete_room(request: Request, room_id: int,access_token: str = Depends(get_token_from_header)):
+    # access_token = request.cookies.get("access_token")
+    # if not access_token:
+    #     raise HTTPException(status_code=401, detail="Not logged in")
     try:
         user = supabase.auth.get_user(access_token).user
     except Exception:

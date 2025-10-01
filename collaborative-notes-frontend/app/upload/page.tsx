@@ -24,6 +24,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Upload, FileText, File, X, Plus } from "lucide-react";
+import api from "../lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -55,7 +56,7 @@ export default function NoteUploadForm() {
 
   const fetchRooms = async () => {
     try {
-      const response = await axios.get(
+      const response = await api.get(
         `${API_BASE_URL}/notes/your-api/rooms/list`,
         {
           withCredentials: true,
@@ -162,7 +163,7 @@ export default function NoteUploadForm() {
         uploadFormData.append("file", file);
       }
 
-      const response = await axios.post(
+      const response = await api.post(
         `${API_BASE_URL}/notes/notes/upload`,
         uploadFormData,
         {

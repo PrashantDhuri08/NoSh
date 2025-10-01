@@ -16,6 +16,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { FileText, Users, Plus, Calendar, ArrowRight } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+// import api from "../lib/api";
+import api from "../lib/api";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -43,15 +45,10 @@ export default function Dashboard() {
 
   const fetchRooms = async () => {
     try {
-      const response = await axios.get(
+      const response = await api.get(
         `${API_BASE_URL}/notes/your-api/rooms/list`,
-        {
-          withCredentials: true,
-        }
+        { withCredentials: true }
       );
-
-      console.log("Fetched rooms:", response.data.rooms);
-
       const fetchedRooms = response.data?.rooms;
       if (Array.isArray(fetchedRooms)) {
         setRooms(fetchedRooms);
@@ -61,20 +58,14 @@ export default function Dashboard() {
       }
     } catch (err: any) {
       if (err.response?.status === 401) {
-        router.push("/login");
+        // router.push("/login");
       } else {
-        router.push("/login");
         setError("Failed to fetch rooms. Please try again.");
       }
     } finally {
       setLoading(false);
     }
   };
-
-  // const handleRoomCreated = (newRoom: Room) => {
-  //   setRooms([newRoom, ...rooms])
-  //   setShowCreateModal(false)
-  // }
 
   const handleRoomCreated = (newRoom: any) => {
     const normalizedRoom: Room = {
@@ -91,22 +82,20 @@ export default function Dashboard() {
   };
 
   const handleDeleteRoom = async (roomId: string) => {
-  const confirmDelete = confirm("Are you sure you want to delete this room?");
-  if (!confirmDelete) return;
+    const confirmDelete = confirm("Are you sure you want to delete this room?");
+    if (!confirmDelete) return;
 
-  try {
-    await axios.delete(`${API_BASE_URL}/notes/rooms/${roomId}`, {
-      withCredentials: true,
-    });
+    try {
+      await api.delete(`${API_BASE_URL}/notes/rooms/${roomId}`, {
+        withCredentials: true,
+      });
 
-    // Remove deleted room from state
-    setRooms((prevRooms) => prevRooms.filter((room) => room.id !== roomId));
-  } catch (error) {
-    console.error("Error deleting room:", error);
-    setError("Failed to delete room. Please try again.");
-  }
-};
-
+      setRooms((prevRooms) => prevRooms.filter((room) => room.id !== roomId));
+    } catch (error) {
+      console.error("Error deleting room:", error);
+      setError("Failed to delete room. Please try again.");
+    }
+  };
 
   const handleRoomInput = (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +178,9 @@ export default function Dashboard() {
                   <p className="text-sm font-medium text-gray-600">
                     Total Rooms
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">{rooms.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {rooms.length}
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -204,7 +195,10 @@ export default function Dashboard() {
                     Total Notes
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {rooms.reduce((sum, room) => sum + (room.notes_count || 0), 0)}
+                    {rooms.reduce(
+                      (sum, room) => sum + (room.notes_count || 0),
+                      0
+                    )}
                   </p>
                 </div>
               </div>
@@ -220,10 +214,14 @@ export default function Dashboard() {
                     Active Today
                   </p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {rooms.filter(room => {
-                      const today = new Date().toDateString()
-                      return new Date(room.created_at).toDateString() === today
-                    }).length}
+                    {
+                      rooms.filter((room) => {
+                        const today = new Date().toDateString();
+                        return (
+                          new Date(room.created_at).toDateString() === today
+                        );
+                      }).length
+                    }
                   </p>
                 </div>
               </div>
@@ -296,24 +294,23 @@ export default function Dashboard() {
                     </Button> */}
 
                     <div className="flex space-x-2">
-  <Button
-    onClick={() => openRoom(room.id)}
-    size="sm"
-    className="flex items-center space-x-1"
-  >
-    <span>Open</span>
-    <ArrowRight className="h-3 w-3" />
-  </Button>
+                      <Button
+                        onClick={() => openRoom(room.id)}
+                        size="sm"
+                        className="flex items-center space-x-1"
+                      >
+                        <span>Open</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </Button>
 
-  <Button
-    variant="destructive"
-    size="sm"
-    onClick={() => handleDeleteRoom(room.id)}
-  >
-    Delete
-  </Button>
-</div>
-
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => handleDeleteRoom(room.id)}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

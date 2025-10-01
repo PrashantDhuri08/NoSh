@@ -3,58 +3,32 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import axios from "axios";
 import { Button } from "@/components/ui/button";
 import { FileText, Users, Upload, LogOut, Menu, X, Home } from "lucide-react";
 import Image from "next/image";
+import { createClient } from "@supabase/supabase-js";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-}
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export default function Navbar() {
-  // const [user, setUser] = useState<User | null>(null)
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<any>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
+    const fetchUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      setUser(data?.user);
+    };
     fetchUser();
   }, []);
 
-  const fetchUser = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/auth/me`, {
-        withCredentials: true,
-      });
-      setUser(response.data.profile.username);
-    } catch (error) {
-      // User not authenticated
-      setUser(null);
-    }
-  };
-
   const handleLogout = async () => {
-    try {
-      await axios.post(
-        `${API_BASE_URL}/auth/logout`,
-        {},
-        {
-          withCredentials: true,
-        }
-      );
-      setUser(null);
-      router.push("/login");
-    } catch (error) {
-      console.error("Logout failed:", error);
-      // Force redirect even if logout fails
-      router.push("/login");
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    router.push("/login");
   };
 
   return (
@@ -99,8 +73,8 @@ export default function Navbar() {
                 </Link>
 
                 <div className="flex items-center space-x-4 border-l pl-4">
-                  <span className="text-lg text-gray-700">Welcome </span>
-                  <span className="text-lg text-black "> {user}</span>
+                  <span className="text-lg text-gray-700">Welcome</span>
+                  <span className="text-lg text-black">{user.email}</span>
                   <Button
                     onClick={handleLogout}
                     variant="outline"
@@ -148,7 +122,7 @@ export default function Navbar() {
                 </Button>
               </Link>
               <div className="pt-2 border-t">
-                <p className="text-sm text-gray-500 px-3 py-2">{user.name}</p>
+                <p className="text-sm text-gray-500 px-3 py-2">{user.email}</p>
                 <Button
                   onClick={handleLogout}
                   variant="outline"

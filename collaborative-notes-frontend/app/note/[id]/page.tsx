@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import axios from "axios";
+import api from "@/app/lib/api";
 import Navbar from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,9 +23,6 @@ import {
   User,
   Tag,
 } from "lucide-react";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
 interface Note {
   id: string;
@@ -54,12 +51,7 @@ export default function NoteViewer() {
 
   const fetchNote = async () => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/notes/notes/${noteId}`,
-        {
-          withCredentials: true,
-        }
-      );
+      const response = await api.get(`/notes/notes/${noteId}`);
       setNote(response.data);
     } catch (err: any) {
       if (err.response?.status === 401) {
@@ -74,10 +66,7 @@ export default function NoteViewer() {
 
   const downloadFile = async (noteId: string, fileName: string) => {
     try {
-      const response = await axios.get(
-        `${API_BASE_URL}/notes/notes/file-url/${noteId}`,
-        { withCredentials: true }
-      );
+      const response = await api.get(`/notes/notes/file-url/${noteId}`);
 
       const signedUrl = response.data.url;
       if (!signedUrl) throw new Error("No download URL returned");
